@@ -20,6 +20,9 @@ interface RoomConnection {
 // Store active connections by room
 const roomConnections = new Map<string, RoomConnection[]>();
 
+// Store tldraw sync rooms
+const tldrawSyncRooms = new Map<string, any>();
+
 export const setupWebSocketHandlers = (wss: WebSocketServer, db: DatabaseConnection) => {
   wss.on('connection', (ws: WebSocket, request) => {
     logger.info('WebSocket connection established', { 
@@ -29,12 +32,20 @@ export const setupWebSocketHandlers = (wss: WebSocketServer, db: DatabaseConnect
 
     let currentRoom: string | null = null;
     let currentUser: string | null = null;
+    let isTldrawSync = false;
 
     // Handle incoming messages
     ws.on('message', async (data: Buffer) => {
       try {
         const message: WebSocketMessage = JSON.parse(data.toString());
         logger.debug('WebSocket message received', { type: message.type, roomId: message.roomId });
+
+        // Check if this is a tldraw sync connection
+        if (message.type === 'sync_join' || message.type === 'sync_update') {
+          isTldrawSync = true;
+          await handleTldrawSyncMessage(ws, message, db);
+          return;
+        }
 
         switch (message.type) {
           case 'join_room':
@@ -75,7 +86,9 @@ export const setupWebSocketHandlers = (wss: WebSocketServer, db: DatabaseConnect
 
     // Handle connection close
     ws.on('close', async () => {
-      if (currentRoom && currentUser) {
+      if (isTldrawSync && currentRoom) {
+        handleTldrawSyncDisconnect(currentRoom, ws);
+      } else if (currentRoom && currentUser) {
         await handleLeaveRoom(ws, { 
           type: 'leave_room', 
           roomId: currentRoom, 
@@ -98,6 +111,7 @@ export const setupWebSocketHandlers = (wss: WebSocketServer, db: DatabaseConnect
         collaboration: config.tldraw.enableCollaboration,
         persistence: config.tldraw.enablePersistence,
         realtime: true,
+        tldrawSync: true,
       },
     }));
   });
@@ -237,6 +251,56 @@ const handleUserActivity = async (ws: WebSocket, message: WebSocketMessage) => {
     data,
     timestamp: Date.now(),
   }, ws);
+};
+
+// Handle tldraw sync messages
+const handleTldrawSyncMessage = async (ws: WebSocket, message: WebSocketMessage, db: DatabaseConnection) => {
+  const { roomId, data } = message;
+
+  if (message.type === 'sync_join') {
+    // Store the WebSocket for this room
+    tldrawSyncRooms.set(roomId, ws);
+    logger.debug('tldraw sync connection joined', { roomId });
+    
+    // Send acknowledgment
+    ws.send(JSON.stringify({
+      type: 'sync_joined',
+      roomId,
+      timestamp: Date.now()
+    }));
+  } else if (message.type === 'sync_update') {
+    // Save to database if persistence is enabled
+    if (config.tldraw.enablePersistence && data) {
+      try {
+        await db.query(
+          'UPDATE rooms SET data = $1, updated_at = NOW() WHERE slug = $2',
+          [JSON.stringify(data), roomId]
+        );
+      } catch (error) {
+        logger.error('Error saving tldraw sync data:', error);
+      }
+    }
+    
+    // Broadcast the update to all WebSocket connections for this room
+    const syncWs = tldrawSyncRooms.get(roomId);
+    if (syncWs && syncWs.readyState === WebSocket.OPEN) {
+      syncWs.send(JSON.stringify({
+        type: 'sync_update',
+        roomId,
+        data,
+        timestamp: Date.now()
+      }));
+      logger.debug('tldraw sync update broadcasted', { roomId });
+    } else {
+      logger.warn('tldraw sync WebSocket not found or not open for room', { roomId });
+    }
+  }
+};
+
+// Handle tldraw sync disconnect
+const handleTldrawSyncDisconnect = (roomId: string, ws: WebSocket) => {
+  tldrawSyncRooms.delete(roomId);
+  logger.debug('tldraw sync connection disconnected', { roomId });
 };
 
 // Broadcast message to all users in a room except the sender

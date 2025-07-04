@@ -251,6 +251,8 @@ class TldrawApp {
         this.handleTldrawUpdate(message.data);
         break;
 
+
+
       case 'user_activity':
         this.handleUserActivity(message);
         break;
@@ -267,8 +269,12 @@ class TldrawApp {
 
   async initializeTldraw() {
     try {
-      // Load tldraw using dynamic import with the ESM build
-      const tldrawModule = await import('https://unpkg.com/tldraw@3.14.0/dist-esm/index.mjs');
+      console.log('Starting tldraw sync initialization...');
+      
+      // Check if tldraw sync is available
+      if (typeof window.TldrawSync === 'undefined') {
+        throw new Error('tldraw sync not loaded');
+      }
       
       // Create a container for tldraw
       const container = document.getElementById('tldraw-container');
@@ -281,21 +287,23 @@ class TldrawApp {
       tldrawDiv.style.position = 'relative';
       container.appendChild(tldrawDiv);
       
-      // Initialize tldraw with React
-      const { createRoot } = await import('https://esm.sh/react@18');
-      const { createElement } = await import('https://esm.sh/react@18');
+      // Create React root and render tldraw with sync
+      const root = ReactDOM.createRoot(tldrawDiv);
       
-      const root = createRoot(tldrawDiv);
+      // Create a custom sync store that uses our existing WebSocket
+      const store = this.createTldrawSyncStore();
       
-      // Create tldraw component
-      const TldrawComponent = tldrawModule.Tldraw || tldrawModule.default;
+      // Create asset store for file uploads
+      const assetStore = this.createAssetStore();
       
       root.render(
-        createElement(TldrawComponent, {
+        React.createElement(window.TldrawSync.Tldraw, {
+          store: store,
+          assets: assetStore,
           persistenceKey: `room-${this.currentRoom.slug}`,
           onMount: (editor) => {
-            console.log('tldraw mounted successfully');
-            this.tldrawEditor = editor; // Store reference to editor
+            console.log('tldraw mounted successfully with sync');
+            this.tldrawEditor = editor;
             
             // Load existing data if available
             if (this.currentRoom.data) {
@@ -307,9 +315,6 @@ class TldrawApp {
                 console.error('Failed to load room data:', error);
               }
             }
-            
-            // Set up real-time collaboration
-            this.setupCollaboration(editor);
           },
           onError: (error) => {
             console.error('tldraw error:', error);
@@ -319,11 +324,128 @@ class TldrawApp {
       );
 
     } catch (error) {
-      console.error('Failed to initialize tldraw:', error);
+      console.error('Failed to initialize tldraw sync:', error);
+      console.error('Error details:', error.stack);
       // Fallback to placeholder
       this.showTldrawPlaceholder();
     }
   }
+
+  createTldrawSyncStore() {
+    // Create a custom store that integrates with our existing WebSocket
+    const store = {
+      // Store the current state
+      state: null,
+      
+      // Listeners for state changes
+      listeners: new Set(),
+      
+      // Subscribe to state changes
+      subscribe: (listener) => {
+        this.listeners.add(listener);
+        return () => this.listeners.delete(listener);
+      },
+      
+      // Get current state
+      getSnapshot: () => this.state,
+      
+      // Update state
+      setSnapshot: (snapshot) => {
+        this.state = snapshot;
+        this.listeners.forEach(listener => listener(snapshot));
+        
+        // Send update to server via existing WebSocket
+        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+          this.websocket.send(JSON.stringify({
+            type: 'sync_update',
+            roomId: this.currentRoom.slug,
+            data: snapshot
+          }));
+        }
+      },
+      
+      // Load snapshot
+      loadSnapshot: (snapshot) => {
+        this.state = snapshot;
+        this.listeners.forEach(listener => listener(snapshot));
+      }
+    };
+    
+    // Set up WebSocket message handling for sync updates
+    this.setupSyncMessageHandling(store);
+    
+    return store;
+  }
+
+  createAssetStore() {
+    return {
+      // Upload file to Bluehost via backend
+      upload: async (file) => {
+        try {
+          console.log('Uploading asset:', file.name, file.type, file.size);
+          
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('roomId', this.currentRoom.slug);
+          
+          const response = await fetch(`${this.config.apiUrl}/api/assets/upload`, {
+            method: 'POST',
+            body: formData,
+          });
+          
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Upload failed');
+          }
+          
+          const result = await response.json();
+          console.log('Asset uploaded successfully:', result.asset);
+          
+          return result.asset.url;
+          
+        } catch (error) {
+          console.error('Asset upload failed:', error);
+          this.showError('Failed to upload asset: ' + error.message);
+          throw error;
+        }
+      },
+      
+      // Resolve asset URL
+      resolve: (asset) => {
+        // If asset already has a URL, return it
+        if (asset.props && asset.props.src) {
+          return asset.props.src;
+        }
+        
+        // Otherwise, construct URL from asset ID
+        if (asset.id) {
+          return `${this.config.apiUrl}/assets/uploads/${asset.id}`;
+        }
+        
+        return null;
+      }
+    };
+  }
+
+  setupSyncMessageHandling(store) {
+    // Override the existing WebSocket message handler to handle sync messages
+    const originalHandler = this.handleWebSocketMessage.bind(this);
+    
+    this.handleWebSocketMessage = (message) => {
+      if (message.type === 'sync_update' && message.roomId === this.currentRoom.slug) {
+        // Handle tldraw sync update
+        if (message.data && store.loadSnapshot) {
+          store.loadSnapshot(message.data);
+          console.log('Applied tldraw sync update from server');
+        }
+      } else {
+        // Handle regular messages
+        originalHandler(message);
+      }
+    };
+  }
+
+
 
   showTldrawPlaceholder() {
     const container = document.getElementById('tldraw-container');
@@ -354,13 +476,15 @@ class TldrawApp {
           WebSocket: ${this.websocket ? 'Connected' : 'Disconnected'}
         </div>
         <div style="margin-top: 8px; padding: 8px 16px; background: #f8d7da; border-radius: 4px; font-size: 12px; color: #721c24;">
-          tldraw loading failed - using placeholder
+          tldraw sync loading failed
         </div>
       </div>
     `;
     console.log('Drawing interface placeholder loaded (fallback)');
     this.setupCollaborationPlaceholder();
   }
+
+
 
   setupCollaboration(editor) {
     // Set up real-time collaboration through WebSocket
@@ -550,6 +674,9 @@ class TldrawApp {
     // Simple success notification
     alert(`Success: ${message}`);
   }
+
+
+
 }
 
 // Initialize app when DOM is loaded
