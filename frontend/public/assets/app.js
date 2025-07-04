@@ -267,43 +267,59 @@ class TldrawApp {
 
   async initializeTldraw() {
     try {
-      // Load tldraw dynamically
-      const tldrawModule = await import('https://unpkg.com/@tldraw/tldraw@3.14.0/dist-esm/index.mjs');
-      const Tldraw = tldrawModule.default || tldrawModule.Tldraw;
+      // Load tldraw
+      const { Tldraw } = await import('https://unpkg.com/tldraw@3.14.0/dist/index.js');
       
-      // Initialize tldraw
-      this.tldrawApp = new Tldraw({
-        container: document.getElementById('tldraw-container'),
-        roomId: this.currentRoom.slug,
-        apiKey: 'your-api-key', // Optional for custom backend
-        onMount: (app) => {
-          console.log('tldraw mounted');
-          
-          // Load existing data if available
-          if (this.currentRoom.data) {
-            try {
-              const data = JSON.parse(this.currentRoom.data);
-              app.store.loadSnapshot(data);
-            } catch (error) {
-              console.error('Failed to load room data:', error);
+      // Create a container for tldraw
+      const container = document.getElementById('tldraw-container');
+      const root = ReactDOM.createRoot(container);
+      
+      // Render tldraw component
+      root.render(
+        React.createElement(Tldraw, {
+          persistenceKey: `room-${this.currentRoom.slug}`,
+          onMount: (editor) => {
+            console.log('tldraw mounted successfully');
+            
+            // Load existing data if available
+            if (this.currentRoom.data) {
+              try {
+                const data = JSON.parse(this.currentRoom.data);
+                editor.store.loadSnapshot(data);
+                console.log('Loaded existing room data');
+              } catch (error) {
+                console.error('Failed to load room data:', error);
+              }
             }
+            
+            // Set up real-time collaboration
+            this.setupCollaboration(editor);
+          },
+          onError: (error) => {
+            console.error('tldraw error:', error);
+            this.showError('Drawing interface error: ' + error.message);
           }
-        },
-        onUpdate: (app) => {
-          // Send updates to server
-          if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-            this.websocket.send(JSON.stringify({
-              type: 'tldraw_update',
-              roomId: this.currentRoom.slug,
-              data: app.store.getSnapshot(),
-            }));
-          }
-        },
-      });
+        })
+      );
 
     } catch (error) {
       console.error('Failed to initialize tldraw:', error);
-      this.showError('Failed to load drawing interface');
+      this.showError('Failed to load drawing interface: ' + error.message);
+    }
+  }
+
+  setupCollaboration(editor) {
+    // Set up real-time collaboration through WebSocket
+    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+      // Listen for tldraw updates
+      editor.store.listen(() => {
+        const snapshot = editor.store.getSnapshot();
+        this.websocket.send(JSON.stringify({
+          type: 'tldraw_update',
+          roomId: this.currentRoom.slug,
+          data: snapshot,
+        }));
+      });
     }
   }
 

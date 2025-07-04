@@ -2,9 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Custom tldraw - Collaborative Drawing</title>
     <meta name="description" content="A custom tldraw installation for collaborative drawing and whiteboarding">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap" rel="stylesheet">
     
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
@@ -13,11 +18,17 @@
     <link rel="stylesheet" href="assets/styles.css">
     
     <!-- tldraw CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/@tldraw/tldraw@3.14.0/tldraw.css">
+    <link rel="stylesheet" href="https://unpkg.com/tldraw@3.14.0/dist/tldraw.css">
     
     <!-- Preload critical resources -->
-    <link rel="preconnect" href="https://your-render-app.onrender.com">
-    <link rel="dns-prefetch" href="https://your-render-app.onrender.com">
+    <link rel="preload" href="assets/app.js" as="script">
+    
+    <!-- React for tldraw -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- App Script -->
+    <script src="assets/app.js" defer></script>
 </head>
 <body>
     <!-- Loading Screen -->
@@ -141,6 +152,5 @@
 
     <!-- Scripts -->
     <script src="config.js"></script>
-    <script src="assets/app.js"></script>
 </body>
 </html> 
