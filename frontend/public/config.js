@@ -84,7 +84,7 @@ window.TLDRAW_CONFIG = {
 };
 
 // Auto-generate WebSocket URL from API URL
-window.TLDRAW_CONFIG.wsUrl = window.TLDRAW_CONFIG.apiUrl.replace(/^https?/, 'ws');
+window.TLDRAW_CONFIG.wsUrl = window.TLDRAW_CONFIG.apiUrl.replace(/^https/, 'wss').replace(/^http/, 'ws');
 
 // Environment detection
 window.TLDRAW_CONFIG.isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
