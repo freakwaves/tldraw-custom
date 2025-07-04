@@ -3,6 +3,27 @@ import { DatabaseConnection } from './database';
 import { logger } from './utils/logger';
 
 export const setupRoutes = (app: Express, db: DatabaseConnection) => {
+  // Root endpoint
+  app.get('/', (req: Request, res: Response) => {
+    return res.json({
+      name: 'tldraw Custom Backend API',
+      version: '1.0.0',
+      description: 'Backend API server for custom tldraw installation',
+      endpoints: {
+        health: '/health',
+        api: '/api',
+        websocket: '/ws',
+        rooms: '/api/rooms',
+        users: '/api/users',
+        assets: '/api/assets',
+        stats: '/api/stats',
+        wsInfo: '/api/ws-info'
+      },
+      documentation: 'API endpoints are available under /api/',
+      websocket: 'WebSocket connection available at /ws'
+    });
+  });
+
   // API routes prefix
   const apiRouter = app.use('/api', (req: Request, res: Response, next: NextFunction) => {
     res.setHeader('Content-Type', 'application/json');
@@ -223,7 +244,7 @@ export const setupRoutes = (app: Express, db: DatabaseConnection) => {
         db.query('SELECT COUNT(*) as count FROM assets'),
       ]);
 
-      res.json({
+      return res.json({
         stats: {
           rooms: parseInt(roomsResult.rows[0].count),
           users: parseInt(usersResult.rows[0].count),
@@ -232,19 +253,49 @@ export const setupRoutes = (app: Express, db: DatabaseConnection) => {
       });
     } catch (error) {
       logger.error('Error fetching stats:', error);
-      res.status(500).json({ error: 'Failed to fetch stats' });
+      return res.status(500).json({ error: 'Failed to fetch stats' });
     }
   });
 
   // WebSocket info endpoint
   app.get('/api/ws-info', (req: Request, res: Response) => {
-    res.json({
+    return res.json({
       wsUrl: `${req.protocol === 'https' ? 'wss' : 'ws'}://${req.get('host')}/ws`,
       features: {
         collaboration: true,
         persistence: true,
         realtime: true,
       },
+    });
+  });
+
+  // API info endpoint
+  app.get('/api', (req: Request, res: Response) => {
+    return res.json({
+      name: 'tldraw Custom Backend API',
+      version: '1.0.0',
+      description: 'Backend API server for custom tldraw installation',
+      endpoints: {
+        rooms: {
+          list: 'GET /api/rooms',
+          create: 'POST /api/rooms',
+          get: 'GET /api/rooms/:slug',
+          update: 'PUT /api/rooms/:slug',
+          delete: 'DELETE /api/rooms/:slug'
+        },
+        assets: {
+          upload: 'POST /api/rooms/:slug/assets',
+          list: 'GET /api/rooms/:slug/assets',
+          get: 'GET /api/assets/:id'
+        },
+        users: {
+          create: 'POST /api/users',
+          get: 'GET /api/users/:id'
+        },
+        stats: 'GET /api/stats',
+        wsInfo: 'GET /api/ws-info'
+      },
+      websocket: 'WebSocket connection available at /ws'
     });
   });
 }; 
