@@ -1,0 +1,42 @@
+services:
+  # tldraw API Server
+  - type: web
+    name: tldraw-api
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: LOG_LEVEL
+        value: info
+      - key: CORS_ORIGIN
+        value: https://yourdomain.com  # Update with your Bluehost domain
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tldraw-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: tldraw-redis
+          property: connectionString
+
+databases:
+  # PostgreSQL Database
+  - name: tldraw-db
+    databaseName: tldraw
+    user: tldraw_user
+    plan: free
+
+services:
+  # Redis Cache
+  - type: redis
+    name: tldraw-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru 
