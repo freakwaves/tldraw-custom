@@ -1,28 +1,28 @@
-import { Express } from 'express';
+import { Express, Request, Response, NextFunction } from 'express';
 import { DatabaseConnection } from './database';
 import { logger } from './utils/logger';
 
 export const setupRoutes = (app: Express, db: DatabaseConnection) => {
   // API routes prefix
-  const apiRouter = app.use('/api', (req, res, next) => {
+  const apiRouter = app.use('/api', (req: Request, res: Response, next: NextFunction) => {
     res.setHeader('Content-Type', 'application/json');
     next();
   });
 
   // Rooms API
-  app.get('/api/rooms', async (req, res) => {
+  app.get('/api/rooms', async (req: Request, res: Response) => {
     try {
       const { rows } = await db.query(
         'SELECT id, name, slug, created_at, updated_at, is_public, max_users FROM rooms ORDER BY updated_at DESC LIMIT 50'
       );
-      res.json({ rooms: rows });
+      return res.json({ rooms: rows });
     } catch (error) {
       logger.error('Error fetching rooms:', error);
-      res.status(500).json({ error: 'Failed to fetch rooms' });
+      return res.status(500).json({ error: 'Failed to fetch rooms' });
     }
   });
 
-  app.post('/api/rooms', async (req, res) => {
+  app.post('/api/rooms', async (req: Request, res: Response) => {
     try {
       const { name, slug, isPublic = false, maxUsers = 50 } = req.body;
       
@@ -35,14 +35,14 @@ export const setupRoutes = (app: Express, db: DatabaseConnection) => {
         [name, slug, isPublic, maxUsers]
       );
 
-      res.status(201).json({ room: rows[0] });
+      return res.status(201).json({ room: rows[0] });
     } catch (error) {
       logger.error('Error creating room:', error);
-      res.status(500).json({ error: 'Failed to create room' });
+      return res.status(500).json({ error: 'Failed to create room' });
     }
   });
 
-  app.get('/api/rooms/:slug', async (req, res) => {
+  app.get('/api/rooms/:slug', async (req: Request, res: Response) => {
     try {
       const { slug } = req.params;
       const { rows } = await db.query(
@@ -54,14 +54,14 @@ export const setupRoutes = (app: Express, db: DatabaseConnection) => {
         return res.status(404).json({ error: 'Room not found' });
       }
 
-      res.json({ room: rows[0] });
+      return res.json({ room: rows[0] });
     } catch (error) {
       logger.error('Error fetching room:', error);
-      res.status(500).json({ error: 'Failed to fetch room' });
+      return res.status(500).json({ error: 'Failed to fetch room' });
     }
   });
 
-  app.put('/api/rooms/:slug', async (req, res) => {
+  app.put('/api/rooms/:slug', async (req: Request, res: Response) => {
     try {
       const { slug } = req.params;
       const { name, data, isPublic, maxUsers } = req.body;
@@ -75,14 +75,14 @@ export const setupRoutes = (app: Express, db: DatabaseConnection) => {
         return res.status(404).json({ error: 'Room not found' });
       }
 
-      res.json({ room: rows[0] });
+      return res.json({ room: rows[0] });
     } catch (error) {
       logger.error('Error updating room:', error);
-      res.status(500).json({ error: 'Failed to update room' });
+      return res.status(500).json({ error: 'Failed to update room' });
     }
   });
 
-  app.delete('/api/rooms/:slug', async (req, res) => {
+  app.delete('/api/rooms/:slug', async (req: Request, res: Response) => {
     try {
       const { slug } = req.params;
       const { rowCount } = await db.query(
@@ -94,15 +94,15 @@ export const setupRoutes = (app: Express, db: DatabaseConnection) => {
         return res.status(404).json({ error: 'Room not found' });
       }
 
-      res.json({ message: 'Room deleted successfully' });
+      return res.json({ message: 'Room deleted successfully' });
     } catch (error) {
       logger.error('Error deleting room:', error);
-      res.status(500).json({ error: 'Failed to delete room' });
+      return res.status(500).json({ error: 'Failed to delete room' });
     }
   });
 
   // Assets API
-  app.post('/api/rooms/:slug/assets', async (req, res) => {
+  app.post('/api/rooms/:slug/assets', async (req: Request, res: Response) => {
     try {
       const { slug } = req.params;
       const { filename, mimeType, size, data } = req.body;
@@ -125,14 +125,14 @@ export const setupRoutes = (app: Express, db: DatabaseConnection) => {
         [roomId, filename, mimeType, size, data]
       );
 
-      res.status(201).json({ asset: rows[0] });
+      return res.status(201).json({ asset: rows[0] });
     } catch (error) {
       logger.error('Error uploading asset:', error);
-      res.status(500).json({ error: 'Failed to upload asset' });
+      return res.status(500).json({ error: 'Failed to upload asset' });
     }
   });
 
-  app.get('/api/rooms/:slug/assets', async (req, res) => {
+  app.get('/api/rooms/:slug/assets', async (req: Request, res: Response) => {
     try {
       const { slug } = req.params;
       
@@ -145,14 +145,14 @@ export const setupRoutes = (app: Express, db: DatabaseConnection) => {
         [slug]
       );
 
-      res.json({ assets: rows });
+      return res.json({ assets: rows });
     } catch (error) {
       logger.error('Error fetching assets:', error);
-      res.status(500).json({ error: 'Failed to fetch assets' });
+      return res.status(500).json({ error: 'Failed to fetch assets' });
     }
   });
 
-  app.get('/api/assets/:id', async (req, res) => {
+  app.get('/api/assets/:id', async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const { rows } = await db.query(
@@ -167,15 +167,15 @@ export const setupRoutes = (app: Express, db: DatabaseConnection) => {
       const asset = rows[0];
       res.setHeader('Content-Type', asset.mime_type);
       res.setHeader('Content-Length', asset.size);
-      res.send(asset.data);
+      return res.send(asset.data);
     } catch (error) {
       logger.error('Error fetching asset:', error);
-      res.status(500).json({ error: 'Failed to fetch asset' });
+      return res.status(500).json({ error: 'Failed to fetch asset' });
     }
   });
 
   // Users API
-  app.post('/api/users', async (req, res) => {
+  app.post('/api/users', async (req: Request, res: Response) => {
     try {
       const { username, email, password } = req.body;
       
@@ -188,14 +188,14 @@ export const setupRoutes = (app: Express, db: DatabaseConnection) => {
         [username, email]
       );
 
-      res.status(201).json({ user: rows[0] });
+      return res.status(201).json({ user: rows[0] });
     } catch (error) {
       logger.error('Error creating user:', error);
-      res.status(500).json({ error: 'Failed to create user' });
+      return res.status(500).json({ error: 'Failed to create user' });
     }
   });
 
-  app.get('/api/users/:id', async (req, res) => {
+  app.get('/api/users/:id', async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const { rows } = await db.query(
@@ -207,15 +207,15 @@ export const setupRoutes = (app: Express, db: DatabaseConnection) => {
         return res.status(404).json({ error: 'User not found' });
       }
 
-      res.json({ user: rows[0] });
+      return res.json({ user: rows[0] });
     } catch (error) {
       logger.error('Error fetching user:', error);
-      res.status(500).json({ error: 'Failed to fetch user' });
+      return res.status(500).json({ error: 'Failed to fetch user' });
     }
   });
 
   // Stats API
-  app.get('/api/stats', async (req, res) => {
+  app.get('/api/stats', async (req: Request, res: Response) => {
     try {
       const [roomsResult, usersResult, assetsResult] = await Promise.all([
         db.query('SELECT COUNT(*) as count FROM rooms'),
@@ -237,7 +237,7 @@ export const setupRoutes = (app: Express, db: DatabaseConnection) => {
   });
 
   // WebSocket info endpoint
-  app.get('/api/ws-info', (req, res) => {
+  app.get('/api/ws-info', (req: Request, res: Response) => {
     res.json({
       wsUrl: `${req.protocol === 'https' ? 'wss' : 'ws'}://${req.get('host')}/ws`,
       features: {

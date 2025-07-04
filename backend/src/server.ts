@@ -44,8 +44,8 @@ const setupMiddleware = () => {
   app.use(cors({
     origin: config.cors.origin,
     credentials: config.cors.credentials,
-    methods: config.cors.methods,
-    allowedHeaders: config.cors.allowedHeaders,
+    methods: [...config.cors.methods],
+    allowedHeaders: [...config.cors.allowedHeaders],
   }));
 
   // Compression
@@ -176,7 +176,7 @@ process.on('uncaughtException', (error) => {
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled rejection at:', promise, 'reason:', reason);
+  logger.error('Unhandled rejection at:', { promise, reason });
   process.exit(1);
 });
 

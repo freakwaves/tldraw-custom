@@ -56,7 +56,10 @@ const createDatabaseConnection = (pool: Pool): DatabaseConnection => {
     },
 
     getClient: async () => {
-      return await pool!.connect();
+      if (!pool) {
+      throw new Error('Database pool not initialized');
+    }
+    return await pool.connect();
     },
 
     close: async () => {
