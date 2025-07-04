@@ -1,7 +1,7 @@
 // tldraw Frontend Configuration
 window.TLDRAW_CONFIG = {
   // Backend API URL (Update this with your Render.com app URL)
-  apiUrl: 'https://your-render-app.onrender.com',
+  apiUrl: 'https://your-tldraw-api.onrender.com', // Update this with your actual Render.com URL after deployment
   
   // WebSocket URL (Will be auto-generated from apiUrl)
   wsUrl: null, // Will be set dynamically
