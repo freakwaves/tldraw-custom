@@ -64,7 +64,7 @@ const setupMiddleware = () => {
       return res.status(200).end();
     }
     
-    next();
+    return next();
   });
 
   // Compression
@@ -92,12 +92,12 @@ const setupMiddleware = () => {
       const duration = Date.now() - start;
       logger.request(req.method, req.url, res.statusCode, duration);
     });
-    next();
+    return next();
   });
 
   // Health check endpoint
   app.get('/health', (req, res) => {
-    res.json({
+    return res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
@@ -125,7 +125,7 @@ const initializeApp = async () => {
     // Error handling middleware
     app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
       logger.error('Unhandled error:', err);
-      res.status(500).json({
+      return res.status(500).json({
         error: 'Internal server error',
         message: config.isDevelopment ? err.message : 'Something went wrong',
       });
@@ -133,7 +133,7 @@ const initializeApp = async () => {
 
     // 404 handler
     app.use('*', (req, res) => {
-      res.status(404).json({
+      return res.status(404).json({
         error: 'Not found',
         message: 'The requested resource was not found',
       });
