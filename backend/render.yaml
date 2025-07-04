@@ -27,16 +27,15 @@ services:
           name: tldraw-redis
           property: connectionString
 
+  # Redis Cache
+  - type: redis
+    name: tldraw-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+
 databases:
   # PostgreSQL Database
   - name: tldraw-db
     databaseName: tldraw
     user: tldraw_user
-    plan: free
-
-services:
-  # Redis Cache
-  - type: redis
-    name: tldraw-redis
-    plan: free
-    maxmemoryPolicy: allkeys-lru 
+    plan: free 
