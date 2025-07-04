@@ -9,7 +9,7 @@ const router = Router();
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (req: any, file: any, cb: any) => {
     // Create assets directory if it doesn't exist
     const uploadDir = path.join(__dirname, '../../public/assets/uploads');
     if (!fs.existsSync(uploadDir)) {
@@ -17,7 +17,7 @@ const storage = multer.diskStorage({
     }
     cb(null, uploadDir);
   },
-  filename: (req, file, cb) => {
+  filename: (req: any, file: any, cb: any) => {
     // Generate unique filename with timestamp
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const ext = path.extname(file.originalname);
@@ -29,7 +29,7 @@ const storage = multer.diskStorage({
 const fileFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedTypes = config.tldraw.allowedAssetTypes;
   
-  if (allowedTypes.includes(file.mimetype)) {
+  if (allowedTypes.includes(file.mimetype as any)) {
     cb(null, true);
   } else {
     cb(new Error(`File type ${file.mimetype} not allowed. Allowed types: ${allowedTypes.join(', ')}`));
@@ -46,26 +46,33 @@ const upload = multer({
 });
 
 // Upload asset endpoint
-router.post('/upload', upload.single('file'), async (req: Request, res: Response) => {
+router.post('/upload', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+      res.status(400).json({ error: 'No file uploaded' });
+      return;
     }
 
     const file = req.file;
-    const roomId = req.body.roomId;
+    const roomId = req.body.roomId as string;
+
+    if (!roomId) {
+      res.status(400).json({ error: 'Room ID is required' });
+      return;
+    }
 
     // Validate file size
     if (file.size > config.tldraw.maxAssetSize) {
       // Remove uploaded file
       fs.unlinkSync(file.path);
-      return res.status(400).json({ 
+      res.status(400).json({ 
         error: `File too large. Maximum size: ${config.tldraw.maxAssetSize / (1024 * 1024)}MB` 
       });
+      return;
     }
 
     // Generate public URL for the asset
-    const assetUrl = `${config.server.baseUrl}/assets/uploads/${file.filename}`;
+    const assetUrl = `${config.baseUrl}/assets/uploads/${file.filename}`;
     
     // Create asset record
     const asset = {
@@ -105,13 +112,20 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
 });
 
 // Get asset info endpoint
-router.get('/:assetId', async (req: Request, res: Response) => {
+router.get('/:assetId', async (req: Request, res: Response): Promise<void> => {
   try {
     const { assetId } = req.params;
+    
+    if (!assetId) {
+      res.status(400).json({ error: 'Asset ID is required' });
+      return;
+    }
+    
     const assetPath = path.join(__dirname, '../../public/assets/uploads', assetId);
     
     if (!fs.existsSync(assetPath)) {
-      return res.status(404).json({ error: 'Asset not found' });
+      res.status(404).json({ error: 'Asset not found' });
+      return;
     }
 
     const stats = fs.statSync(assetPath);
@@ -122,7 +136,7 @@ router.get('/:assetId', async (req: Request, res: Response) => {
       id: assetId,
       size: stats.size,
       type: mimeType,
-      url: `${config.server.baseUrl}/assets/uploads/${assetId}`,
+      url: `${config.baseUrl}/assets/uploads/${assetId}`,
       uploadedAt: stats.birthtime.toISOString()
     };
 
@@ -138,13 +152,20 @@ router.get('/:assetId', async (req: Request, res: Response) => {
 });
 
 // Delete asset endpoint
-router.delete('/:assetId', async (req: Request, res: Response) => {
+router.delete('/:assetId', async (req: Request, res: Response): Promise<void> => {
   try {
     const { assetId } = req.params;
+    
+    if (!assetId) {
+      res.status(400).json({ error: 'Asset ID is required' });
+      return;
+    }
+    
     const assetPath = path.join(__dirname, '../../public/assets/uploads', assetId);
     
     if (!fs.existsSync(assetPath)) {
-      return res.status(404).json({ error: 'Asset not found' });
+      res.status(404).json({ error: 'Asset not found' });
+      return;
     }
 
     // Remove file

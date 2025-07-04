@@ -29,7 +29,7 @@ app.use(helmet({
 
 // CORS configuration
 app.use(cors({
-  origin: config.cors.allowedOrigins,
+  origin: config.cors.origin,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -38,7 +38,7 @@ app.use(cors({
 // Rate limiting
 const limiter = rateLimit({
   windowMs: config.rateLimit.windowMs,
-  max: config.rateLimit.maxRequests,
+  max: config.rateLimit.max,
   message: {
     error: 'Too many requests, please try again later.',
   },
@@ -71,24 +71,25 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    version: config.app.version,
+    version: '1.0.0',
   });
 });
 
 // Error handling middleware
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction): void => {
   logger.error('Unhandled error:', err);
   
   if (err.type === 'entity.too.large') {
-    return res.status(413).json({
+    res.status(413).json({
       error: 'Request entity too large',
       message: 'The uploaded file exceeds the maximum allowed size.',
     });
+    return;
   }
   
   res.status(500).json({
     error: 'Internal server error',
-    message: config.server.showErrorDetails ? err.message : 'Something went wrong',
+    message: config.isDevelopment ? err.message : 'Something went wrong',
   });
 });
 

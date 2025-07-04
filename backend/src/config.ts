@@ -26,6 +26,9 @@ export const config = {
   nodeEnv: env.NODE_ENV,
   isProduction: env.NODE_ENV === 'production',
   isDevelopment: env.NODE_ENV === 'development',
+  baseUrl: env.NODE_ENV === 'production' 
+    ? 'https://tldraw-custom.onrender.com' 
+    : `http://localhost:${env.PORT}`,
   
   // Database configuration
   database: {
@@ -76,7 +79,7 @@ export const config = {
     
     // Asset configuration
     maxAssetSize: 10 * 1024 * 1024, // 10MB
-    allowedAssetTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+    allowedAssetTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'video/mp4', 'video/webm', 'application/pdf'],
     
     // Collaboration settings
     enableCollaboration: true,
