@@ -49,7 +49,9 @@ export const config = {
   
   // CORS configuration
   cors: {
-    origin: env.CORS_ORIGIN ? env.CORS_ORIGIN.split(',').map(origin => origin.trim()) : '*',
+    origin: env.CORS_ORIGIN ? 
+      env.CORS_ORIGIN.split(',').map(origin => origin.trim()) : 
+      ['https://freakwav.es', 'https://freakwav.es/bananaduck/tldraw', 'http://localhost:3000'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],

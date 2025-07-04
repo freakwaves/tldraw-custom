@@ -31,6 +31,13 @@ export const setupRoutes = (app: Express, db: DatabaseConnection) => {
   });
 
   // Rooms API
+  // Handle OPTIONS for rooms endpoint
+  app.options('/api/rooms', (req: Request, res: Response) => {
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    return res.status(200).send();
+  });
+
   app.get('/api/rooms', async (req: Request, res: Response) => {
     try {
       const { rows } = await db.query(

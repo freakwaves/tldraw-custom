@@ -46,7 +46,26 @@ const setupMiddleware = () => {
     credentials: config.cors.credentials,
     methods: [...config.cors.methods],
     allowedHeaders: [...config.cors.allowedHeaders],
+    optionsSuccessStatus: 200, // Some legacy browsers (IE11, various SmartTVs) choke on 204
   }));
+
+  // Handle OPTIONS preflight requests
+  app.options('*', cors());
+
+  // Additional CORS headers for all responses
+  app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    res.header('Access-Control-Allow-Origin', Array.isArray(config.cors.origin) ? config.cors.origin[0] : config.cors.origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+    
+    next();
+  });
 
   // Compression
   app.use(compression());
@@ -55,13 +74,14 @@ const setupMiddleware = () => {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-  // Rate limiting
+  // Rate limiting (exclude OPTIONS requests)
   const limiter = rateLimit({
     windowMs: config.rateLimit.windowMs,
     max: config.rateLimit.max,
     message: config.rateLimit.message,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => req.method === 'OPTIONS',
   });
   app.use('/api/', limiter);
 
