@@ -166,100 +166,112 @@ class TldrawApp {
 
   async joinRoom(slug) {
     try {
-      // Fetch room info
-      const response = await fetch(`${this.config.apiUrl}/api/rooms/${slug}`);
+      this.showLoading();
       
+      // Fetch room data
+      const response = await fetch(`${this.config.apiUrl}/api/rooms/${slug}`);
       if (!response.ok) {
         throw new Error('Room not found');
       }
-
-      const data = await response.json();
-      this.currentRoom = data.room;
-
-      // Update URL
-      this.updateURL(slug);
-
-      // Initialize WebSocket connection
+      
+      const result = await response.json();
+      this.currentRoom = result.room;
+      
+      // Connect to WebSocket
       await this.connectWebSocket();
-
+      
       // Initialize tldraw
       await this.initializeTldraw();
-
-      // Show room interface
+      
+      // Update UI
       this.showRoomInterface();
-
+      this.updateURL(slug);
+      
+      console.log('Joined room:', slug);
+      
     } catch (error) {
-      console.error('Error joining room:', error);
-      this.showError('Failed to join room');
+      console.error('Failed to join room:', error);
+      this.showError('Failed to join room: ' + error.message);
+    } finally {
+      this.hideLoading();
     }
   }
 
   async connectWebSocket() {
-    return new Promise((resolve, reject) => {
-      this.websocket = new WebSocket(`${this.config.wsUrl}/ws`);
-
+    try {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${this.config.apiUrl.replace(/^https?:\/\//, '')}/ws`;
+      
+      this.websocket = new WebSocket(wsUrl);
+      
       this.websocket.onopen = () => {
         console.log('WebSocket connected');
         
-        // Join room
-        this.websocket.send(JSON.stringify({
-          type: 'join_room',
-          roomId: this.currentRoom.slug,
-          userId: this.currentUser,
-        }));
-
-        resolve();
+        // Join the room
+        if (this.currentRoom) {
+          this.websocket.send(JSON.stringify({
+            type: 'join_room',
+            roomId: this.currentRoom.slug,
+            userId: this.currentUser || 'anonymous'
+          }));
+        }
       };
-
+      
       this.websocket.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        this.handleWebSocketMessage(message);
+        this.handleWebSocketMessage(event.data);
       };
-
-      this.websocket.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        reject(error);
-      };
-
+      
       this.websocket.onclose = () => {
         console.log('WebSocket disconnected');
         this.handleWebSocketDisconnect();
       };
-    });
+      
+      this.websocket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        this.showError('Connection error');
+      };
+      
+    } catch (error) {
+      console.error('Failed to connect WebSocket:', error);
+      this.showError('Failed to connect to server');
+    }
   }
 
   handleWebSocketMessage(message) {
-    switch (message.type) {
-      case 'welcome':
-        console.log('Connected to server:', message.message);
-        break;
-
-      case 'room_joined':
-        console.log('Joined room:', message.roomName);
-        this.updateRoomInfo(message);
-        break;
-
-      case 'user_joined':
-        this.addParticipant(message.userId);
-        break;
-
-      case 'user_left':
-        this.removeParticipant(message.userId);
-        break;
-
-      case 'tldraw_update':
-        this.handleTldrawUpdate(message.data);
-        break;
-
-
-
-      case 'user_activity':
-        this.handleUserActivity(message);
-        break;
-
-      case 'error':
-        this.showError(message.message);
-        break;
+    try {
+      const data = JSON.parse(message);
+      console.log('Received WebSocket message:', data);
+      
+      switch (data.type) {
+        case 'sync_update':
+          // Handle tldraw sync updates
+          if (data.roomId === this.currentRoom.slug && this.tldrawEditor) {
+            try {
+              this.tldrawEditor.store.loadSnapshot(data.data);
+              console.log('Applied tldraw sync update from server');
+            } catch (error) {
+              console.error('Failed to apply sync update:', error);
+            }
+          }
+          break;
+          
+        case 'user_joined':
+          this.handleUserActivity(data);
+          break;
+          
+        case 'user_left':
+          this.handleUserActivity(data);
+          break;
+          
+        case 'room_info':
+          this.updateRoomInfo(data);
+          break;
+          
+        default:
+          console.log('Unknown message type:', data.type);
+      }
+    } catch (error) {
+      console.error('Error parsing WebSocket message:', error);
     }
   }
 
@@ -269,11 +281,31 @@ class TldrawApp {
 
   async initializeTldraw() {
     try {
-      console.log('Starting tldraw sync initialization...');
+      console.log('Starting tldraw initialization...');
       
-      // Check if tldraw sync is available
-      if (typeof window.TldrawSync === 'undefined') {
-        throw new Error('tldraw sync not loaded');
+      // Wait for modules to load
+      let attempts = 0;
+      const maxAttempts = 50; // 5 seconds max wait
+      
+      while (attempts < maxAttempts) {
+        console.log('Available libraries:', {
+          Tldraw: typeof window.Tldraw,
+          TldrawSync: typeof window.TldrawSync,
+          React: typeof React,
+          ReactDOM: typeof ReactDOM
+        });
+        
+        if (typeof window.Tldraw !== 'undefined' && window.Tldraw.Tldraw) {
+          break;
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      
+      // Check if tldraw is available
+      if (typeof window.Tldraw === 'undefined' || !window.Tldraw.Tldraw) {
+        throw new Error('tldraw not loaded - check network connection');
       }
       
       // Create a container for tldraw
@@ -287,23 +319,28 @@ class TldrawApp {
       tldrawDiv.style.position = 'relative';
       container.appendChild(tldrawDiv);
       
-      // Create React root and render tldraw with sync
+      // Create React root and render tldraw
       const root = ReactDOM.createRoot(tldrawDiv);
-      
-      // Create a custom sync store that uses our existing WebSocket
-      const store = this.createTldrawSyncStore();
       
       // Create asset store for file uploads
       const assetStore = this.createAssetStore();
       
+      // Create a custom sync adapter that uses our WebSocket
+      const syncAdapter = this.createSyncAdapter();
+      
+      console.log('Rendering tldraw component...');
+      
       root.render(
-        React.createElement(window.TldrawSync.Tldraw, {
-          store: store,
-          assets: assetStore,
-          persistenceKey: `room-${this.currentRoom.slug}`,
+        React.createElement(window.Tldraw.Tldraw, {
+          assetUrls: assetStore,
           onMount: (editor) => {
-            console.log('tldraw mounted successfully with sync');
+            console.log('tldraw mounted successfully');
             this.tldrawEditor = editor;
+            
+            // Set up sync adapter
+            if (syncAdapter) {
+              editor.store.syncAdapter = syncAdapter;
+            }
             
             // Load existing data if available
             if (this.currentRoom.data) {
@@ -324,62 +361,38 @@ class TldrawApp {
       );
 
     } catch (error) {
-      console.error('Failed to initialize tldraw sync:', error);
+      console.error('Failed to initialize tldraw:', error);
       console.error('Error details:', error.stack);
       // Fallback to placeholder
       this.showTldrawPlaceholder();
     }
   }
 
-  createTldrawSyncStore() {
-    // Create a custom store that integrates with our existing WebSocket
-    const store = {
-      // Store the current state
-      state: null,
-      
-      // Listeners for state changes
-      listeners: new Set(),
-      
-      // Subscribe to state changes
-      subscribe: (listener) => {
-        this.listeners.add(listener);
-        return () => this.listeners.delete(listener);
-      },
-      
-      // Get current state
-      getSnapshot: () => this.state,
-      
-      // Update state
-      setSnapshot: (snapshot) => {
-        this.state = snapshot;
-        this.listeners.forEach(listener => listener(snapshot));
-        
-        // Send update to server via existing WebSocket
+  createSyncAdapter() {
+    // Create a custom sync adapter that integrates with our WebSocket
+    return {
+      // Send updates to server
+      sendMessage: (message) => {
         if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
           this.websocket.send(JSON.stringify({
             type: 'sync_update',
             roomId: this.currentRoom.slug,
-            data: snapshot
+            data: message
           }));
         }
       },
       
-      // Load snapshot
-      loadSnapshot: (snapshot) => {
-        this.state = snapshot;
-        this.listeners.forEach(listener => listener(snapshot));
+      // Handle incoming updates
+      onMessage: (message) => {
+        // This will be called by our WebSocket message handler
+        console.log('Received sync message:', message);
       }
     };
-    
-    // Set up WebSocket message handling for sync updates
-    this.setupSyncMessageHandling(store);
-    
-    return store;
   }
 
   createAssetStore() {
     return {
-      // Upload file to Bluehost via backend
+      // Upload file to backend
       upload: async (file) => {
         try {
           console.log('Uploading asset:', file.name, file.type, file.size);
@@ -410,40 +423,15 @@ class TldrawApp {
         }
       },
       
-      // Resolve asset URL
-      resolve: (asset) => {
-        // If asset already has a URL, return it
-        if (asset.props && asset.props.src) {
-          return asset.props.src;
-        }
-        
-        // Otherwise, construct URL from asset ID
-        if (asset.id) {
-          return `${this.config.apiUrl}/assets/uploads/${asset.id}`;
-        }
-        
-        return null;
+      // Resolve asset URL for tldraw
+      resolve: (assetId) => {
+        if (!assetId) return null;
+        return `${this.config.apiUrl}/assets/uploads/${assetId}`;
       }
     };
   }
 
-  setupSyncMessageHandling(store) {
-    // Override the existing WebSocket message handler to handle sync messages
-    const originalHandler = this.handleWebSocketMessage.bind(this);
-    
-    this.handleWebSocketMessage = (message) => {
-      if (message.type === 'sync_update' && message.roomId === this.currentRoom.slug) {
-        // Handle tldraw sync update
-        if (message.data && store.loadSnapshot) {
-          store.loadSnapshot(message.data);
-          console.log('Applied tldraw sync update from server');
-        }
-      } else {
-        // Handle regular messages
-        originalHandler(message);
-      }
-    };
-  }
+
 
 
 

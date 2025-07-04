@@ -24,8 +24,15 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react-dom.production.min.js"></script>
     
-    <!-- tldraw sync -->
-    <script src="https://unpkg.com/@tldraw/sync@3.14.0/dist/index.js"></script>
+    <!-- tldraw core and sync -->
+    <script type="module">
+      import { Tldraw } from 'https://unpkg.com/@tldraw/tldraw@3.14.0/dist-esm/index.js';
+      window.Tldraw = { Tldraw };
+    </script>
+    <script type="module">
+      import { TldrawSync } from 'https://unpkg.com/@tldraw/sync@3.14.0/dist-esm/index.js';
+      window.TldrawSync = { TldrawSync };
+    </script>
     
     <!-- App Script -->
     <script src="assets/app.js" defer></script>
