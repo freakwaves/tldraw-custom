@@ -28,16 +28,20 @@ let db: any = null;
 // Middleware setup
 const setupMiddleware = () => {
   // CORS configuration - must be first
-  app.use(cors({
-    origin: config.cors.origin,
-    credentials: config.cors.credentials,
-    methods: [...config.cors.methods],
-    allowedHeaders: [...config.cors.allowedHeaders],
-    optionsSuccessStatus: 200,
-  }));
-
-  // Handle OPTIONS preflight requests
-  app.options('*', cors());
+  app.use((req, res, next) => {
+    // Set CORS headers for all requests
+    res.header('Access-Control-Allow-Origin', 'https://freakwav.es');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+    
+    return next();
+  });
 
   // Security middleware
   app.use(helmet({
