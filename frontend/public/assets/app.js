@@ -268,7 +268,8 @@ class TldrawApp {
   async initializeTldraw() {
     try {
       // Load tldraw dynamically
-      const { Tldraw } = await import('https://unpkg.com/@tldraw/tldraw@3.14.0/dist/tldraw.esm.js');
+      const tldrawModule = await import('https://unpkg.com/@tldraw/tldraw@3.14.0/dist-esm/index.mjs');
+      const Tldraw = tldrawModule.default || tldrawModule.Tldraw;
       
       // Initialize tldraw
       this.tldrawApp = new Tldraw({

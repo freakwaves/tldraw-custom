@@ -54,8 +54,22 @@ export const setupRoutes = (app: Express, db: DatabaseConnection) => {
     try {
       const { name, slug, isPublic = false, maxUsers = 50 } = req.body;
       
+      logger.info('Creating room:', { name, slug, isPublic, maxUsers });
+      
       if (!name || !slug) {
+        logger.warn('Missing required fields:', { name, slug });
         return res.status(400).json({ error: 'Name and slug are required' });
+      }
+
+      // Check if room with slug already exists
+      const existingRoom = await db.query(
+        'SELECT id FROM rooms WHERE slug = $1',
+        [slug]
+      );
+
+      if (existingRoom.rows.length > 0) {
+        logger.warn('Room with slug already exists:', { slug });
+        return res.status(409).json({ error: 'Room with this URL already exists' });
       }
 
       const { rows } = await db.query(
@@ -63,10 +77,12 @@ export const setupRoutes = (app: Express, db: DatabaseConnection) => {
         [name, slug, isPublic, maxUsers]
       );
 
+      logger.info('Room created successfully:', { roomId: rows[0].id, slug });
       return res.status(201).json({ room: rows[0] });
     } catch (error) {
       logger.error('Error creating room:', error);
-      return res.status(500).json({ error: 'Failed to create room' });
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return res.status(500).json({ error: 'Failed to create room', details: errorMessage });
     }
   });
 
