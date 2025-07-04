@@ -40,9 +40,10 @@ export const initializeDatabase = async (): Promise<DatabaseConnection> => {
 };
 
 // Create database connection interface
-const createDatabaseConnection = (pool: Pool): DatabaseConnection => {
+const createDatabaseConnection = (pool: Pool | null): DatabaseConnection => {
   return {
     query: async (text: string, params?: any[]) => {
+      if (!pool) throw new Error('Database pool not initialized');
       const start = Date.now();
       try {
         const result = await pool.query(text, params);
@@ -57,14 +58,16 @@ const createDatabaseConnection = (pool: Pool): DatabaseConnection => {
 
     getClient: async () => {
       if (!pool) {
-      throw new Error('Database pool not initialized');
-    }
-    return await pool.connect();
+        throw new Error('Database pool not initialized');
+      }
+      return await pool.connect();
     },
 
     close: async () => {
-      await pool!.end();
-      pool = null;
+      if (pool) {
+        await pool.end();
+        pool = null;
+      }
     },
   };
 };
