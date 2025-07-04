@@ -27,6 +27,18 @@ let db: any = null;
 
 // Middleware setup
 const setupMiddleware = () => {
+  // CORS configuration - must be first
+  app.use(cors({
+    origin: config.cors.origin,
+    credentials: config.cors.credentials,
+    methods: [...config.cors.methods],
+    allowedHeaders: [...config.cors.allowedHeaders],
+    optionsSuccessStatus: 200,
+  }));
+
+  // Handle OPTIONS preflight requests
+  app.options('*', cors());
+
   // Security middleware
   app.use(helmet({
     contentSecurityPolicy: {
@@ -39,33 +51,6 @@ const setupMiddleware = () => {
       },
     },
   }));
-
-  // CORS configuration
-  app.use(cors({
-    origin: config.cors.origin,
-    credentials: config.cors.credentials,
-    methods: [...config.cors.methods],
-    allowedHeaders: [...config.cors.allowedHeaders],
-    optionsSuccessStatus: 200, // Some legacy browsers (IE11, various SmartTVs) choke on 204
-  }));
-
-  // Handle OPTIONS preflight requests
-  app.options('*', cors());
-
-  // Additional CORS headers for all responses
-  app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-    res.header('Access-Control-Allow-Origin', Array.isArray(config.cors.origin) ? config.cors.origin[0] : config.cors.origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    
-    // Handle preflight
-    if (req.method === 'OPTIONS') {
-      return res.status(200).end();
-    }
-    
-    return next();
-  });
 
   // Compression
   app.use(compression());
